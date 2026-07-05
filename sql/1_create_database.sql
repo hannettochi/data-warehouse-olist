@@ -1,0 +1,5 @@
+CREATE DATABASE olist_dwh;
+
+CREATE SCHEMA raw;
+CREATE SCHEMA staging;
+CREATE SCHEMA dwh;
