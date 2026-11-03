@@ -242,24 +242,24 @@ FROM raw.geolocation;
 
 
 -- Translations
-CREATE TABLE raw.translations
+CREATE TABLE raw.product_category_name_translation
 (
     product_category_name TEXT,
     product_category_name_english TEXT
 );
 
-COPY raw.translations
+COPY raw.product_category_name_translation
 FROM '/Users/hannettochi/Downloads/archive/product_category_name_translation.csv'
 CSV HEADER;
 
 SELECT COUNT(*)
-FROM raw.translations;
+FROM raw.product_category_name_translation;
 
 SELECT *
-FROM raw.translations
+FROM raw.product_category_name_translation
 LIMIT 10;
 
 SELECT
   COUNT(*) FILTER (WHERE product_category_name IS NULL) AS product_category_name_nulls,
   COUNT(*) FILTER (WHERE product_category_name_english IS NULL) AS product_category_name_english_nulls
-FROM raw.translations;
+FROM raw.product_category_name_translation;

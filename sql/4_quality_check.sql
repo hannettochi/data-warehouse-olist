@@ -41,6 +41,19 @@ FROM staging.orders
 WHERE order_delivered_customer_date < order_purchase_timestamp
    OR order_approved_at < order_purchase_timestamp;
 
+-- этапы доставки в неправильном порядке
+SELECT *
+FROM staging.orders
+WHERE order_delivered_carrier_date < order_approved_at
+   OR order_delivered_customer_date < order_delivered_carrier_date;
+
+-- заказы без товаров
+SELECT o.order_id, o.order_status
+FROM staging.orders o
+LEFT JOIN staging.order_items oi
+    ON o.order_id = oi.order_id
+WHERE oi.order_id IS NULL;
+
 -- доставленные заказы без даты получения покупателем
 SELECT *
 FROM staging.orders
