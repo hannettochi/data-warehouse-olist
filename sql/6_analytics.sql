@@ -1,13 +1,12 @@
 -- вопросы, которым нужны данные по отдельным заказам и покупателям
 
 
--- 1 Влияет ли опыт первого заказа на повторную покупку?
+-- 1 Влияет ли опыт первого заказа на возвращение покупателя?
 -- *первые заказы до 2018-03-01 (у более поздних покупателей не было времени
--- сделать повторную покупку и доля была бы занижена)
--- *повторная покупка — заказ в более поздний день (заказы в тот же день — разбитая корзина)
--- *это корреляция, на повторную покупку также влияют и другие факторы
+-- вернуться и доля возвратов была бы занижена)
+-- *это корреляция, на возврат также влияют и другие факторы
 
--- повторная покупка в зависимости от доставки первого заказа
+-- возврат в зависимости от доставки первого заказа
 WITH customer_orders AS (
     SELECT
         c.customer_unique_id,
@@ -19,7 +18,7 @@ WITH customer_orders AS (
             PARTITION BY c.customer_unique_id
             ORDER BY fo.order_purchase_timestamp, fo.order_id   -- order_id: на случай двух заказов в одну секунду
         ) AS rn,
-        MAX(fo.purchase_date) OVER (PARTITION BY c.customer_unique_id) AS last_purchase_date
+        COUNT(*) OVER (PARTITION BY c.customer_unique_id) AS orders_cnt
     FROM dwh.fact_orders fo
     JOIN dwh.dim_customers c
         ON c.customer_id = fo.customer_id
@@ -38,16 +37,15 @@ SELECT
         ELSE                         '1. вовремя'
     END AS first_order_delivery,
     COUNT(*) AS customers,
-    COUNT(*) FILTER (WHERE last_purchase_date > purchase_date) AS repeat_customers,
-    ROUND(100.0 * COUNT(*) FILTER (WHERE last_purchase_date > purchase_date) / COUNT(*), 2) AS repeat_pct
+    COUNT(*) FILTER (WHERE orders_cnt > 1) AS returned_customers,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE orders_cnt > 1) / COUNT(*), 2) AS returned_pct
 FROM first_orders
 GROUP BY 1
 ORDER BY 1;
--- Вывод: покупатели, чей первый заказ задержали, реже делают повторную покупку
--- 1.99% против 2.94% у получивших заказ вовремя (разница значима, p < 0.01)
+-- Вывод: покупатели с задержанным первым заказом возвращаются реже
 
 
--- повторная покупка в зависимости от оценки первого заказа
+-- возврат в зависимости от оценки первого заказа
 WITH customer_orders AS (
     SELECT
         c.customer_unique_id,
@@ -57,7 +55,7 @@ WITH customer_orders AS (
             PARTITION BY c.customer_unique_id
             ORDER BY fo.order_purchase_timestamp, fo.order_id
         ) AS rn,
-        MAX(fo.purchase_date) OVER (PARTITION BY c.customer_unique_id) AS last_purchase_date
+        COUNT(*) OVER (PARTITION BY c.customer_unique_id) AS orders_cnt
     FROM dwh.fact_orders fo
     JOIN dwh.dim_customers c
         ON c.customer_id = fo.customer_id
@@ -77,16 +75,15 @@ SELECT
         ELSE                             '4. без оценки'
     END AS first_order_review,
     COUNT(*) AS customers,
-    COUNT(*) FILTER (WHERE last_purchase_date > purchase_date) AS repeat_customers,
-    ROUND(100.0 * COUNT(*) FILTER (WHERE last_purchase_date > purchase_date) / COUNT(*), 2) AS repeat_pct
+    COUNT(*) FILTER (WHERE orders_cnt > 1) AS returned_customers,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE orders_cnt > 1) / COUNT(*), 2) AS returned_pct
 FROM first_orders
 GROUP BY 1
 ORDER BY 1;
--- Вывод: после плохой оценки повторную покупку делают реже (2.23% вместо 3.04% после позитивной)
--- (разница значима, p < 0.01)
+-- Вывод: оценка первого заказа в одиночку с возвратом почти не связана
 
 
--- что сильнее связано с повторной покупкой: задержка или плохая оценка
+-- что сильнее связано с возвратом: задержка и плохая оценка
 WITH customer_orders AS (
     SELECT
         c.customer_unique_id,
@@ -97,7 +94,7 @@ WITH customer_orders AS (
             PARTITION BY c.customer_unique_id
             ORDER BY fo.order_purchase_timestamp, fo.order_id
         ) AS rn,
-        MAX(fo.purchase_date) OVER (PARTITION BY c.customer_unique_id) AS last_purchase_date
+        COUNT(*) OVER (PARTITION BY c.customer_unique_id) AS orders_cnt
     FROM dwh.fact_orders fo
     JOIN dwh.dim_customers c
         ON c.customer_id = fo.customer_id
@@ -119,23 +116,24 @@ SELECT
         ELSE                             '3. позитив (4-5)'
     END AS review,
     COUNT(*) AS customers,
-    COUNT(*) FILTER (WHERE last_purchase_date > purchase_date) AS repeat_customers,
-    ROUND(100.0 * COUNT(*) FILTER (WHERE last_purchase_date > purchase_date) / COUNT(*), 2) AS repeat_pct
+    COUNT(*) FILTER (WHERE orders_cnt > 1) AS returned_customers,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE orders_cnt > 1) / COUNT(*), 2) AS returned_pct
 FROM first_orders
 GROUP BY 1, 2
 ORDER BY 1, 2;
--- Вывод: связаны и задержка, и оценка, меньше всего повторных покупок при задержке
--- и плохой оценке (1.79%), больше всего, если доставили вовремя и позитивный отзыв (3.05%)
--- среди доставленных вовремя оценка значима (3.05% против 2.43%, p = 0.02)
+-- Вывод: падение возврата есть только при задержке и плохой оценке, 
+-- если заказ пришёл вовремя, плохая оценка на возврат не влияет
 
 
--- 2 Сколько покупателей делают повторную покупку и через сколько дней?
 
--- доля покупателей с заказами в 2+ разных дня
+
+-- 2 Сколько покупателей возвращаются и через сколько дней?
+
+-- доля покупателей с 2+ заказами
 WITH customer_orders AS (
     SELECT
         c.customer_unique_id,
-        COUNT(DISTINCT fo.purchase_date) AS purchase_days
+        COUNT(*) AS orders_cnt
     FROM dwh.fact_orders fo
     JOIN dwh.dim_customers c
         ON fo.customer_id = c.customer_id
@@ -144,10 +142,10 @@ WITH customer_orders AS (
 )
 SELECT
     COUNT(*) AS customers,
-    COUNT(*) FILTER (WHERE purchase_days > 1) AS repeat_customers,
-    ROUND(100.0 * COUNT(*) FILTER (WHERE purchase_days > 1) / COUNT(*), 2) AS repeat_customers_pct
+    COUNT(*) FILTER (WHERE orders_cnt > 1) AS repeat_customers,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE orders_cnt > 1) / COUNT(*), 2) AS repeat_customers_pct
 FROM customer_orders;
--- Вывод: повторную покупку делают только 2.17% покупателей (2 065 из 94 990)
+-- Вывод: повторно покупают только 3% покупателей
 
 
 -- время между первой и второй покупкой
@@ -176,7 +174,7 @@ second_purchase AS (
       AND next_purchase_ts IS NOT NULL
 )
 SELECT
-    COUNT(*) AS repeat_customers,
+    COUNT(*) AS returned_customers,
     COUNT(*) FILTER (WHERE days_to_second = 0) AS same_day,
     PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY days_to_second) AS p25_days,
     PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY days_to_second) AS median_days,
@@ -184,8 +182,8 @@ SELECT
     PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY days_to_second)
         FILTER (WHERE days_to_second > 0) AS median_days_excl_same_day
 FROM second_purchase;
--- Вывод: 30% вторых заказов (869 из 2 888) сделаны в тот же день, что и первый —
--- это разбитая корзина, а не повторная покупка. без них медиана до второго заказа 75 дней
+-- Вывод: 30% повторных заказов сделаны в тот же день, это разбитые корзины,
+-- без них медиана времени до второй покупки - 75 дней
 
 
 -- 3 зависимость выручки от крупных заказов
@@ -199,10 +197,8 @@ SELECT
     PERCENTILE_CONT(0.9)  WITHIN GROUP (ORDER BY total_order_amount) AS p90,
     PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY total_order_amount) AS p99
 FROM dwh.fact_orders
-WHERE order_status NOT IN ('canceled', 'unavailable')
-  AND items_count > 0;
--- Вывод: распределение скошено вправо: среднее 137, медиана 87,
--- для типичного заказа корректнее смотреть медиану
+WHERE order_status NOT IN ('canceled', 'unavailable');
+-- Вывод: 10% самых дорогих заказов дают 41% выручки, нижняя половина 17%
 
 
 -- доля выручки по децилям заказов
@@ -212,7 +208,6 @@ WITH ranked AS (
         NTILE(10) OVER (ORDER BY total_order_amount DESC) AS decile
     FROM dwh.fact_orders
     WHERE order_status NOT IN ('canceled', 'unavailable')
-      AND items_count > 0
 )
 SELECT
     decile,
@@ -224,11 +219,12 @@ SELECT
 FROM ranked
 GROUP BY decile
 ORDER BY decile;
--- Вывод: 10% самых дорогих заказов дают 41% выручки, нижняя половина — около 17%
+-- Вывод: заказы из 2+ товаров получают низкую оценку в 3 раза чаще (24.6% против 7.6%)
+-- возможно, заказы от нескольких продавцов приходят частями
 
 
 -- 4 Что ещё связано с низкой оценкой
--- *берём только доставленные вовремя заказы с оценкой
+-- *берём только доставленные вовремя и оцененные заказы с оценкой
 
 -- количество товаров в заказе
 SELECT
@@ -242,8 +238,7 @@ WHERE order_status = 'delivered'
   AND review_score IS NOT NULL
 GROUP BY 1
 ORDER BY 1;
--- Вывод: заказы из 2+ товаров получают низкую оценку в 3 раза чаще (24.6% против 7.6%),
--- даже если доставлены вовремя. гипотеза: заказы от нескольких продавцов приходят частями
+-- Вывод: доля доставки в чеке на оценку почти не влияет (8.8% и 9.8% низких оценок)
 
 
 -- доля доставки в чеке
@@ -263,7 +258,7 @@ WHERE order_status = 'delivered'
   AND review_score IS NOT NULL
 GROUP BY 1
 ORDER BY 1;
--- Вывод: доля доставки в чеке на оценку почти не влияет (8.8% -> 9.8% низких оценок)
+-- Вывод: между штатами доставка вдвое дольше и задержки вдвое чаще
 
 
 -- штат продавца и покупателей
@@ -294,13 +289,11 @@ WHERE fo.order_status = 'delivered'
   AND fo.is_delayed IS NOT NULL
 GROUP BY 1
 ORDER BY 1;
--- Вывод: между штатами доставка вдвое дольше (15.1 против 7.9 дня) и задержки вдвое чаще
--- (8.0% против 4.5%) — срок для дальних доставок прогнозируется хуже
+-- Вывод:
 
 
 -- 5 На каком этапе теряется время доставки
 -- покупка -> подтверждение -> передача перевозчику -> получение
--- *исключаем заказы с неправильным порядком дат (проверка в 4_quality_check)
 
 WITH stages AS (
     SELECT
@@ -312,9 +305,6 @@ WITH stages AS (
       AND order_approved_at IS NOT NULL
       AND order_delivered_carrier_date IS NOT NULL
       AND order_delivered_customer_date IS NOT NULL
-      AND order_approved_at >= order_purchase_timestamp
-      AND order_delivered_carrier_date >= order_approved_at
-      AND order_delivered_customer_date >= order_delivered_carrier_date
 )
 SELECT
     ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY approval_days)::NUMERIC, 1) AS approval_median,
@@ -324,12 +314,16 @@ SELECT
     ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY shipping_days)::NUMERIC, 1) AS shipping_median,
     ROUND(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY shipping_days)::NUMERIC, 1) AS shipping_p90
 FROM stages;
--- Вывод: дольше всего занимает доставка перевозчиком: медиана 7.1 дня, p90 18.9.
--- передача перевозчику — медиана 1.8 дня, p90 6, подтверждение почти мгновенное
+-- Отрицательные длительности — признак ошибок в данных, стоит проверить отдельно:
+SELECT
+    COUNT(*) FILTER (WHERE order_delivered_carrier_date < order_approved_at) AS carrier_before_approval,
+    COUNT(*) FILTER (WHERE order_delivered_customer_date < order_delivered_carrier_date) AS customer_before_carrier
+FROM dwh.fact_orders;
+-- Вывод:
 
 
 -- 6 Какие категории получают самые низкие оценки?
--- *заказ с товарами из разных категорий учитываем в каждой из них
+-- *учитываем заказы с товарами в разных категориях для каждой категории 
 -- *отсекаем категории с менее чем 300 заказами, где средняя оценка случайна
 WITH order_categories AS (
     SELECT DISTINCT
@@ -354,9 +348,8 @@ GROUP BY oc.category
 HAVING COUNT(*) >= 300
 ORDER BY low_score_pct DESC
 LIMIT 15;
--- Вывод: худшие оценки у office_furniture и audio (~22% низких оценок).
--- у audio это совпадает с самой высокой долей задержек, у office_furniture — нет:
--- там проблема, вероятно, в товаре. больше всего недовольных в bed_bath_table (~1 470 заказов)
+-- Вывод: категории с худшими оценками office_furniture и audio (~22% низких оценок),
+-- у audio плохие оценки связаны с высокой долей задержек
 
 
 -- 7. Покупают ли в рассрочку дороже?
@@ -376,5 +369,5 @@ WHERE order_status NOT IN ('canceled', 'unavailable')
   AND payment_installments IS NOT NULL
 GROUP BY 1
 ORDER BY 1;
--- Вывод: заказы в рассрочку дороже (медиана 60 -> 180 при 7+ платежах).
--- это корреляция: скорее дорогие покупки чаще оплачивают в рассрочку, чем рассрочка увеличивает чек
+-- Вывод: заказы в рассрочку заметно дороже, 
+-- возможно, дорогие покупки чаще оплачивают в рассрочку
