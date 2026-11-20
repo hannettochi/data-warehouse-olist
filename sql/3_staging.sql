@@ -1,5 +1,6 @@
+
 -- Orders
-CREATE TABLE staging.orders
+CREATE TABLE IF NOT EXISTS staging.orders
 (
     order_id TEXT,
     customer_id TEXT,
@@ -10,6 +11,8 @@ CREATE TABLE staging.orders
     order_delivered_customer_date TIMESTAMP,
     order_estimated_delivery_date TIMESTAMP
 );
+
+TRUNCATE TABLE staging.orders;
 
 INSERT INTO staging.orders
 SELECT
@@ -34,7 +37,7 @@ FROM staging.orders;
 
 
 -- Customers
-CREATE TABLE staging.customers
+CREATE TABLE IF NOT EXISTS staging.customers
 (
     customer_id TEXT,
     customer_unique_id TEXT,
@@ -42,6 +45,8 @@ CREATE TABLE staging.customers
     customer_city TEXT,
     customer_state TEXT
 );
+
+TRUNCATE TABLE staging.customers;
 
 INSERT INTO staging.customers
 SELECT
@@ -63,7 +68,7 @@ FROM staging.customers;
 
 
 -- Order items
-CREATE TABLE staging.order_items
+CREATE TABLE IF NOT EXISTS staging.order_items
 (
     order_id TEXT,
     order_item_id INT,
@@ -73,6 +78,8 @@ CREATE TABLE staging.order_items
     price NUMERIC,
     freight_value NUMERIC
 );
+
+TRUNCATE TABLE staging.order_items;
 
 INSERT INTO staging.order_items
 SELECT
@@ -99,7 +106,7 @@ FROM staging.order_items;
 
 
 -- Payments
-CREATE TABLE staging.payments
+CREATE TABLE IF NOT EXISTS staging.payments
 (
     order_id TEXT,
     payment_sequential INT,
@@ -107,6 +114,8 @@ CREATE TABLE staging.payments
     payment_installments INT,
     payment_value NUMERIC
 );
+
+TRUNCATE TABLE staging.payments;
 
 INSERT INTO staging.payments
 SELECT
@@ -129,7 +138,7 @@ FROM staging.payments;
 
 
 -- Products
-CREATE TABLE staging.products
+CREATE TABLE IF NOT EXISTS staging.products
 (
     product_id TEXT,
     product_category_name TEXT,
@@ -141,6 +150,8 @@ CREATE TABLE staging.products
     product_height_cm INT,
     product_width_cm INT
 );
+
+TRUNCATE TABLE staging.products;
 
 INSERT INTO staging.products
 SELECT
@@ -169,13 +180,15 @@ FROM staging.products;
 
 
 -- Sellers
-CREATE TABLE staging.sellers
+CREATE TABLE IF NOT EXISTS staging.sellers
 (
     seller_id TEXT,
     seller_zip_code_prefix TEXT,
     seller_city TEXT,
     seller_state TEXT
 );
+
+TRUNCATE TABLE staging.sellers;
 
 INSERT INTO staging.sellers
 SELECT
@@ -195,7 +208,7 @@ FROM staging.sellers;
 
 
 -- Reviews
-CREATE TABLE staging.reviews
+CREATE TABLE IF NOT EXISTS staging.reviews
 (
     review_id TEXT,
     order_id TEXT,
@@ -205,6 +218,8 @@ CREATE TABLE staging.reviews
     review_creation_date TIMESTAMP,
     review_answer_timestamp TIMESTAMP
 );
+
+TRUNCATE TABLE staging.reviews;
 
 INSERT INTO staging.reviews
 SELECT
@@ -228,7 +243,7 @@ FROM staging.reviews;
 
 
 -- Geolocation
-CREATE TABLE staging.geolocation
+CREATE TABLE IF NOT EXISTS staging.geolocation
 (
     geolocation_zip_code_prefix TEXT,
     geolocation_lat DOUBLE PRECISION,
@@ -236,6 +251,8 @@ CREATE TABLE staging.geolocation
     geolocation_city TEXT,
     geolocation_state TEXT
 );
+
+TRUNCATE TABLE staging.geolocation;
 
 INSERT INTO staging.geolocation
 SELECT
@@ -257,11 +274,13 @@ FROM staging.geolocation;
 
 
 -- Translation
-CREATE TABLE staging.product_category_name_translation
+CREATE TABLE IF NOT EXISTS staging.product_category_name_translation
 (
     product_category_name TEXT,
     product_category_name_english TEXT
 );
+
+TRUNCATE TABLE staging.product_category_name_translation;
 
 INSERT INTO staging.product_category_name_translation
 SELECT

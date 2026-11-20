@@ -60,6 +60,12 @@ FROM staging.orders
 WHERE order_status = 'delivered'
   AND order_delivered_customer_date IS NULL;
 
+SELECT *
+FROM staging.orders
+WHERE order_delivered_customer_date < order_purchase_timestamp
+   OR order_approved_at < order_purchase_timestamp
+   OR order_delivered_carrier_date < order_purchase_timestamp;
+
 -- записи без платежей
 SELECT *
 FROM staging.payments
